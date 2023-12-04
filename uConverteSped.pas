@@ -95,11 +95,16 @@ type
     FValorOperacao: Real;
     FValorAtualPis: Real;
     FValorAtualCofins: Real;
+    Lista : TStringList;
+    FValorICMSC100: Real;
+    FRegistroC100: TStringDynArray;
     procedure GeraArquivoExcel;
     procedure AjustaArquivo;
     procedure CalculaTotais;
     procedure CalculaPisCofinsC175(AValue, AOld : TStringDynArray);
-    procedure CalculaPisCofinsC170(AValue, AOld : TStringDynArray);
+    procedure CalculaPisCofinsC170(AValue : TStringDynArray);
+    procedure CalculaPisCofinsC100(posicao : Integer);
+    procedure PreencheDadosC170(AValue:TStringDynArray);
     function GetPathFile : String;
     function ValidaC175(AValue : TStringDynArray) : Boolean;
     function ValidaC170(AValue : TStringDynArray) : Boolean;
@@ -108,6 +113,7 @@ type
     function ValidaCSTPisCofC170(AValue: TStringDynArray): Boolean;
     function ValidaCFOP(AValue : TStringDynArray; Pos : Integer) : Boolean;
     property ValorICMS: Real read FValorICMS write FValorICMS;
+    property ValorICMSC100: Real read FValorICMSC100 write FValorICMSC100;
     property ValorPis: Real read FValorPis write FValorPis;
     property ValorCofins: Real read FValorCofins write FValorCofins;
     property BasePisCofins: Real read FBasePisCofins write FBasePisCofins;
@@ -124,7 +130,8 @@ type
     property ValorOperacao: Real read FValorOperacao write FValorOperacao;
     property ValorAtualPis: Real read FValorAtualPis write FValorAtualPis;
     property ValorAtualCofins: Real read FValorAtualCofins write FValorAtualCofins;
-    procedure GravarDados(AOld: TArray<System.string>);
+    property RegistroC100: TStringDynArray read FRegistroC100 write FRegistroC100;
+    procedure GravarDados(AValue: TArray<System.string>);
   public
     procedure RunTask(var aTask: ITask; aTp: Integer);
     procedure ExibirLoading;
@@ -148,7 +155,6 @@ var
   Registro : TStringDynArray;
   RegistroMaisUm : TStringDynArray;
   Gerar : Boolean;
-  Lista : TStringList;
 begin
   mtDados.Close;
   mtDados.Open;
@@ -177,6 +183,7 @@ begin
 
       if (ValidaC100(Registro, RegistroMaisUm)) then
       begin
+        RegistroC100 := SplitString(Lista[i],'|');
         if ValidaCSTPisCofC175(RegistroMaisUm) then
         begin
           ValorICMS := RoundABNT(StrToCurrDef(Registro[22],0),2);
@@ -193,17 +200,20 @@ begin
           end;
         end;
 
-        if ValidaCSTPisCofC170(RegistroMaisUm) then
+        if ValidaCSTPisCofC170(Registro) then
         begin
-          ValorICMS := RoundABNT(StrToCurrDef(Registro[22],0),2);
-          if ValorICMS > 0 then
+          CalculaPisCofinsC100(i);
+//          ValorICMS := RoundABNT(StrToCurrDef(Registro[22],0),2);
+//          if ValorICMS > 0 then
           begin
-            ValorPisC100 := RoundABNT(StrToCurrDef(Registro[26],0),2);
-            ValorCofinsC100 := RoundABNT(StrToCurrDef(Registro[27],0),2);
-
-            CalculaPisCofinsC170(RegistroMaisUm, Registro);
-            Registro[26] := CurrToStr(FValorPisC100 - FValorDifPis);
-            Registro[27] := CurrToStr(FValorCofinsC100 - FValorDifCofins);
+//            ValorPisC100 := RoundABNT(StrToCurrDef(Registro[26],0),2);
+//            ValorCofinsC100 := RoundABNT(StrToCurrDef(Registro[27],0),2);
+//
+//            CalculaPisCofinsC170(RegistroMaisUm, Registro);
+//            Registro[26] := CurrToStr(FValorPisC100 - FValorDifPis);
+//            Registro[27] := CurrToStr(FValorCofinsC100 - FValorDifCofins);
+            Registro[26] := CurrToStr(FValorPisC100);
+            Registro[27] := CurrToStr(FValorCofinsC100);
           end;
         end;
       end;
@@ -218,8 +228,9 @@ begin
         Registro[16] := FormatFloat('0.00', ValorCofins);
       end;
 
-      if ValidaC170(Registro) and (ValorICMS > 0) then
+      if ValidaC170(Registro) then
       begin
+        CalculaPisCofinsC170(Registro);
         Linha := '';
         Registro[26] := FormatFloat('0.00', BasePisCofins);
         Registro[08] := FormatFloat('0.00', ValorDesconto);
@@ -249,8 +260,31 @@ begin
   ExibirLoading;
 end;
 
-procedure TViewPrincipal.CalculaPisCofinsC170(AValue, AOld: TStringDynArray);
+procedure TViewPrincipal.CalculaPisCofinsC100(posicao : Integer);
+var
+  MudouRegistro : Boolean;
+  I : Integer;
+  ProximoRegistro : TStringDynArray;
 begin
+  MudouRegistro := False;
+  if chkC110.Checked then
+    i := 1
+  else
+    i := 0;
+  while not MudouRegistro do
+  begin
+    i := i + 1;
+    ProximoRegistro := SplitString(Lista[posicao+i],'|');
+    if ValidaCSTPisCofC170(ProximoRegistro) then
+      PreencheDadosC170(ProximoRegistro);
+    if ProximoRegistro[1] <> 'C170' then
+      MudouRegistro := True;
+  end;
+end;
+
+procedure TViewPrincipal.CalculaPisCofinsC170(AValue: TStringDynArray);
+begin
+  ValorICMS := RoundABNT(StrToCurrDef(AValue[15],0),2);
   ValorOperacao := RoundABNT(StrToFloat(AValue[5]) * StrToFloat(AValue[7]) ,2);
   ValorAtualPis := RoundABNT(StrToFloat(AValue[30]),2);
   ValorAtualCofins := RoundABNT(StrToFloat(AValue[36]),2);
@@ -271,24 +305,38 @@ begin
   AliqCofins := StrToCurrDef(AValue[33],0);
   ValorCofins := RoundABNT(BasePisCofins * (AliqCofins / 100),2);
   ValorDifCofins := ValorAtualCofins - ValorCofins;
-  GravarDados(AOld);
+  GravarDados(RegistroC100);
 end;
 
-procedure TViewPrincipal.GravarDados(AOld: TArray<System.string>);
+procedure TViewPrincipal.GravarDados(AValue: TArray<System.string>);
 begin
   mtDados.Insert;
-  mtDadosCHAVE.AsString := AOld[9];
-  mtDadosNUMERO.AsString := AOld[8];
-  mtDadosSERIE.AsString := AOld[7];
+  mtDadosCHAVE.AsString := AValue[9];
+  mtDadosNUMERO.AsString := AValue[8];
+  mtDadosSERIE.AsString := AValue[7];
   mtDadosVALOR_PIS_ANTIGO.AsFloat := ValorAtualPis;
   mtDadosVALOR_COFINS_ANTIGO.AsFloat := ValorAtualCofins;
   mtDadosVALOR_BASE_ANTIGO.AsFloat := BasePisCofinsAtual;
   mtDadosVLR_ICMS.AsFloat := FValorICMS;
   mtDadosVLR_BASE.AsFloat := FBasePisCofins;
-  mtDadosVLR_PIS.AsFloat := FValorDifPis;
-  mtDadosVLR_COFINS.AsFloat := FValorDifCofins;
-  mtDadosVLR_TOTAL.AsFloat := FValorDifPis + FValorDifCofins;
+  mtDadosVLR_PIS.AsFloat := FValorPis;
+  mtDadosVLR_COFINS.AsFloat := FValorCofins;
+  mtDadosVLR_TOTAL.AsFloat := FValorPis + FValorCofins;
   mtDados.Post;
+end;
+
+procedure TViewPrincipal.PreencheDadosC170(AValue: TStringDynArray);
+begin
+  BasePisCofins := StrToCurrDef(AValue[26],0);
+  ValorICMS := StrToCurrDef(AValue[15],0);
+  AliqPis := StrToCurrDef(AValue[27],0);
+  AliqCofins := StrToCurrDef(AValue[33],0);
+  if FBasePisCofins > 0 then
+  begin
+    BasePisCofins := FBasePisCofins - ValorICMS;
+    ValorPisC100 := RoundABNT(FValorPisC100 + (BasePisCofins * FAliqPis / 100),2);
+    ValorCofinsC100 := RoundABNT(FValorCofinsC100 + (BasePisCofins * FAliqCofins / 100),2);
+  end;
 end;
 
 procedure TViewPrincipal.CalculaPisCofinsC175(AValue, AOld : TStringDynArray);
@@ -316,7 +364,7 @@ begin
   ValorCofins := RoundABNT(BasePisCofins * (AliqCofins / 100),2);
   ValorDifCofins := ValorAtualCofins - ValorCofins;
 
-  GravarDados(AOld);
+//  GravarDados(AOld);
 end;
 
 procedure TViewPrincipal.CalculaTotais;
@@ -456,14 +504,22 @@ end;
 function TViewPrincipal.ValidaCSTPisCofC170(AValue: TStringDynArray): Boolean;
 begin
   Result := False;
-  case AnsiIndexStr(AValue[25], ['01']) of
-   0 : Result := True;
+  if AValue[1] <> 'C170' then
+    Exit;
+  if AValue[25].IsEmpty then
+    Exit;
+  if RoundABNT(StrToFloat(AValue[30]),2) = 0 then
+    Exit;
+  case AnsiIndexStr(AValue[25], ['01','02']) of
+   0,1 : Result := True;
   end;
 end;
 
 function TViewPrincipal.ValidaCSTPisCofC175(AValue: TStringDynArray): Boolean;
 begin
   Result := False;
+  if AValue[5].IsEmpty then
+    Exit;
   case AnsiIndexStr(AValue[5], ['01']) of
    0 : Result := True;
   end;
@@ -486,6 +542,9 @@ begin
   Result := False;
   if (AValue[1] = 'C170') then
   begin
+    ValorICMS := RoundABNT(StrToCurrDef(AValue[15],0),2);
+    if ValorICMS = 0 then
+      Exit;
     if ValidaCFOP(AValue, 11) then
       Result := True;
   end;
